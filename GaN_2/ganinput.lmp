@@ -1,0 +1,55 @@
+units     metal
+atom_style charge
+boundary   s s s 
+read_data  GaN_nanobelt.data
+
+pair_style sw
+pair_coeff * * GaN.sw Ga N
+
+neighbor 2.0 bin
+neigh_modify delay 0 every 1 check yes
+
+minimize 1.0e-6 1.0e-8 10000 100000
+
+timestep 0.001
+
+fix nvt all nvt temp 300.0 300.0 0.1
+run 100000
+unfix nvt
+
+variable efield equal 2.0  # CHANGE THIS VALUE PER RUN
+fix efield all efield 0.0 0.0 ${efield}
+
+fix nvt2 all nvt temp 300.0 300.0 0.1
+run 100000
+unfix nvt2
+
+region mid block INF INF INF INF 10 12 units box
+group middle region mid
+
+fix bend middle addforce 0.0 0.02 0.0
+run 5000
+unfix bend
+
+unfix efield
+
+fix nve all nve
+
+# ---------- Compute Stress Tensor ----------
+compute stress all stress/atom NULL
+compute pzz all reduce sum c_stress[3]
+variable lz equal lz
+variable area equal lx*ly
+variable stress_z equal c_pzz/v_area  # stress in GPa
+
+thermo 100
+thermo_style custom step temp v_stress_z pe ke etotal
+
+# ---------- Set Dump Directory Based on E-field ----------
+variable dumpdir string dump_vibrate_${efield}
+shell mkdir ${dumpdir}
+
+# ---------- Dump Vibrate Files to Specified Folder ----------
+dump 1 all custom 100 ${dumpdir}/dump.vibrate.* id type x y z
+
+run 500000
