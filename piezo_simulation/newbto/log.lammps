@@ -1,0 +1,227 @@
+LAMMPS (2 Apr 2025)
+OMP_NUM_THREADS environment is not set. Defaulting to 1 thread. (src/comm.cpp:99)
+  using 1 OpenMP thread(s) per MPI task
+Loaded 1 plugins from C:\Users\Abhiraj\AppData\Local\LAMMPS 64-bit 2Apr2025 with Python\plugins
+# ---------- Initialization ----------
+units           metal
+dimension       3
+boundary        p p p
+atom_style      full
+
+read_data       batio3.data
+Reading data file ...
+  orthogonal box = (0 0 0) to (8 8 8)
+  1 by 1 by 1 MPI processor grid
+  reading atoms ...
+  80 atoms
+  scanning bonds ...
+  1 = max bonds/atom
+  orthogonal box = (0 0 0) to (8 8 8)
+  1 by 1 by 1 MPI processor grid
+  reading bonds ...
+  40 bonds
+Finding 1-2 1-3 1-4 neighbors ...
+  special bond factors lj:    0        0        0       
+  special bond factors coul:  0        0        0       
+     1 = max # of 1-2 neighbors
+     0 = max # of 1-3 neighbors
+     0 = max # of 1-4 neighbors
+     1 = max # of special neighbors
+  special bonds CPU = 0.001 seconds
+  read_data CPU = 0.009 seconds
+
+# ---------- Potential & Force Fields ----------
+pair_style      buck/coul/long 10.0
+
+# Full set of 21 pair_coeffs (from Sepliarsky 2004 + symmetry)
+pair_coeff 1 1  0.0      1.0     0.0
+pair_coeff 1 2  24394.0  0.2776  27.88
+pair_coeff 1 3  25500.0  0.2900  23.00
+pair_coeff 1 4  26361.0  0.3013  24.45
+pair_coeff 1 5  22000.0  0.2750  19.00
+pair_coeff 1 6  23427.0  0.2823  22.84
+
+pair_coeff 2 2  629.757  0.3125  0.0
+pair_coeff 2 3  31000.0  0.2663  20.91
+pair_coeff 2 4  26361.0  0.3013  24.45
+pair_coeff 2 5  20800.0  0.2930  23.34
+pair_coeff 2 6  23427.0  0.2823  22.84
+
+pair_coeff 3 3  0.0      1.0     0.0
+pair_coeff 3 4  37990.0  0.2671  25.36
+pair_coeff 3 5  24000.0  0.2650  17.00
+pair_coeff 3 6  32000.0  0.2600  18.89
+
+pair_coeff 4 4  2443.87  0.2899  0.0
+pair_coeff 4 5  23700.0  0.2900  20.52
+pair_coeff 4 6  32000.0  0.2600  18.89
+
+pair_coeff 5 5  0.0      1.0     0.0
+pair_coeff 5 6  22764.0  0.2891  18.69
+
+pair_coeff 6 6  22764.0  0.2891  18.69
+
+bond_style      harmonic
+bond_coeff      1 1000.0 0.0
+
+kspace_style    ewald 1e-6
+
+# ---------- Groups ----------
+group shells type 2 4 6
+40 atoms in group shells
+group cores  type 1 3 5
+40 atoms in group cores
+group all_atoms union shells cores
+80 atoms in group all_atoms
+
+# ---------- Neighboring ----------
+neighbor        2.0 bin
+neigh_modify    delay 0 every 1 check yes
+
+# ---------- Time Integration ----------
+velocity        all_atoms create 300.0 12345 mom yes rot no
+fix             shell_nve shells nve
+fix             core_nvt cores nvt temp 300.0 300.0 100.0
+
+timestep        0.5
+
+# ---------- Thermo Settings ----------
+thermo          100
+thermo_style    custom step temp press pe ke etotal
+thermo_modify   lost warn flush yes
+
+# ---------- Pre-Run to Initialize System ----------
+run             0
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (src/kspace.cpp:342)
+  G vector (1/distance) = 0.35958297
+  estimated absolute RMS force accuracy = 1.5319035e-05
+  estimated relative force accuracy = 1.0638481e-06
+  KSpace vectors: actual max1d max3d = 128 4 364
+                  kxmax kymax kzmax  = 4 4 4
+Generated 0 of 15 mixed pair_coeff terms from geometric mixing rule
+Neighbor list info ...
+  update: every = 1 steps, delay = 0 steps, check = yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 12
+  ghost atom cutoff = 12
+  binsize = 6, bins = 2 2 2
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair buck/coul/long, perpetual
+      attributes: half, newton on
+      pair build: half/bin/newton
+      stencil: half/bin/3d
+      bin: standard
+Per MPI rank memory allocation (min/avg/max) = 13.5 | 13.5 | 13.5 Mbytes
+   Step          Temp          Press          PotEng         KinEng         TotEng    
+         0   300            30898230       2472.2232      3.0634654      2475.2867    
+Loop time of 2e-06 on 1 procs for 0 steps with 80 atoms
+
+0.0% CPU use with 1 MPI tasks x 1 OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0          | 0          | 0          |   0.0 |  0.00
+Bond    | 0          | 0          | 0          |   0.0 |  0.00
+Kspace  | 0          | 0          | 0          |   0.0 |  0.00
+Neigh   | 0          | 0          | 0          |   0.0 |  0.00
+Comm    | 0          | 0          | 0          |   0.0 |  0.00
+Output  | 0          | 0          | 0          |   0.0 |  0.00
+Modify  | 0          | 0          | 0          |   0.0 |  0.00
+Other   |            | 2e-06      |            |       |100.00
+
+Nlocal:             80 ave          80 max          80 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:           5713 ave        5713 max        5713 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:          45536 ave       45536 max       45536 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 45536
+Ave neighs/atom = 569.2
+Ave special neighs/atom = 1
+Neighbor list builds = 0
+Dangerous builds = 0
+
+# ---------- Charge Check ----------
+compute         q all property/atom q
+compute         Q all reduce sum c_q
+run             0
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (src/kspace.cpp:342)
+  G vector (1/distance) = 0.35958297
+  estimated absolute RMS force accuracy = 1.5319035e-05
+  estimated relative force accuracy = 1.0638481e-06
+  KSpace vectors: actual max1d max3d = 128 4 364
+                  kxmax kymax kzmax  = 4 4 4
+Generated 0 of 15 mixed pair_coeff terms from geometric mixing rule
+Per MPI rank memory allocation (min/avg/max) = 13.5 | 13.5 | 13.5 Mbytes
+   Step          Temp          Press          PotEng         KinEng         TotEng    
+         0   300            30898230       2472.2232      3.0634654      2475.2867    
+Loop time of 2e-06 on 1 procs for 0 steps with 80 atoms
+
+0.0% CPU use with 1 MPI tasks x 1 OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0          | 0          | 0          |   0.0 |  0.00
+Bond    | 0          | 0          | 0          |   0.0 |  0.00
+Kspace  | 0          | 0          | 0          |   0.0 |  0.00
+Neigh   | 0          | 0          | 0          |   0.0 |  0.00
+Comm    | 0          | 0          | 0          |   0.0 |  0.00
+Output  | 0          | 0          | 0          |   0.0 |  0.00
+Modify  | 0          | 0          | 0          |   0.0 |  0.00
+Other   |            | 2e-06      |            |       |100.00
+
+Nlocal:             80 ave          80 max          80 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:           5713 ave        5713 max        5713 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:          45536 ave       45536 max       45536 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 45536
+Ave neighs/atom = 569.2
+Ave special neighs/atom = 1
+Neighbor list builds = 0
+Dangerous builds = 0
+variable        total_charge equal c_Q
+print           ">>> Total charge = ${total_charge}"
+>>> Total charge = 0
+
+# ---------- Compute Polarization ----------
+compute         disp all displace/atom
+variable        px atom c_q * c_disp[1]
+variable        py atom c_q * c_disp[2]
+variable        pz atom c_q * c_disp[3]
+compute         Px all reduce sum v_px
+compute         Py all reduce sum v_py
+compute         Pz all reduce sum v_pz
+
+# ---------- Apply strain in Z direction ----------
+variable        strain equal 0.01
+variable        new_z equal "lz*(1.0 + v_strain)"
+change_box      all z final 0.0 ${new_z} remap
+change_box      all z final 0.0 8.08 remap
+Changing box ...
+  orthogonal box = (0 0 0) to (8 8 8.08)
+
+# ---------- Updated Thermo with Polarization ----------
+thermo_style custom step temp press v_strain c_Px c_Py c_Pz
+WARNING: New thermo_style command, previous thermo_modify settings will be lost (src/output.cpp:911)
+run 5000
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (src/kspace.cpp:342)
+  G vector (1/distance) = 0.35951379
+  estimated absolute RMS force accuracy = 1.5310211e-05
+  estimated relative force accuracy = 1.0632353e-06
+  KSpace vectors: actual max1d max3d = 128 4 364
+                  kxmax kymax kzmax  = 4 4 4
+Generated 0 of 15 mixed pair_coeff terms from geometric mixing rule
+Per MPI rank memory allocation (min/avg/max) = 14 | 14 | 14 Mbytes
+   Step          Temp          Press         v_strain         c_Px           c_Py           c_Pz     
+         0   300            29856646       0.01           0              0              0            
+ERROR: Lost atoms: original 80 current 0
+For more information see https://docs.lammps.org/err0008 (src/thermo.cpp:518)

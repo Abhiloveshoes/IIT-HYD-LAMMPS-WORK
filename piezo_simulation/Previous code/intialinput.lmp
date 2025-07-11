@@ -1,0 +1,101 @@
+# LAMMPS Input Script for BaTiO3 Piezoelectric Simulation
+
+
+# ========== INITIALIZATION ==========
+units           metal
+dimension       3
+boundary        p p p
+atom_style      charge
+
+# ========== READ STRUCTURE ==========
+read_data       data.lmp
+
+# ========== FORCE FIELD ==========
+# Simplified Lennard-Jones + Coulomb potential
+pair_style      lj/cut/coul/long 10.0
+pair_coeff      1 1 0.01 3.0   # Ba-Ba
+pair_coeff      1 2 0.02 2.5   # Ba-Ti
+pair_coeff      1 3 0.03 2.8   # Ba-O
+pair_coeff      2 2 0.02 2.0   # Ti-Ti
+pair_coeff      2 3 0.05 2.3   # Ti-O
+pair_coeff      3 3 0.01 2.6   # O-O
+
+kspace_style    pppm 1.0e-4
+
+# ========== GROUPS ==========
+# Define regions for applying forces
+region          top block INF INF INF INF 6.0 INF
+region          bottom block INF INF INF INF INF 2.0
+group           top_atoms region top
+group           bottom_atoms region bottom
+group           mobile subtract all bottom_atoms
+
+# ========== INITIAL CONDITIONS ==========
+velocity        all create 300.0 12345 dist gaussian
+timestep        0.001
+
+# ========== MINIMIZATION ==========
+print "Starting energy minimization..."
+minimize        1.0e-4 1.0e-6 1000 10000
+
+# ========== EQUILIBRATION ==========
+print "Starting equilibration..."
+fix             1 all nvt temp 300.0 300.0 0.1  `
+thermo_style    custom step temp pe ke etotal press vol
+thermo          100
+run             5000
+unfix           1
+
+# ========== CALCULATE INITIAL POLARIZATION ==========
+compute         dipole_moment all dipole
+
+# ========== APPLY MECHANICAL STRESS ==========
+print "Applying mechanical stress..."
+
+# Fix bottom atoms and apply force to top atoms
+fix             anchor bottom_atoms setforce 0.0 0.0 0.0
+fix             tension top_atoms addforce 0.0 0.0 0.01
+
+# ========== OUTPUT SETUP ==========
+thermo_style    custom step temp press vol c_dipole_moment[1] c_dipole_moment[2] c_dipole_moment[3]
+thermo          50
+
+# Dump trajectory
+dump            1 all custom 500 trajectory.dump id type x y z q fx fy fz
+dump_modify     1 sort id
+
+# Output polarization data
+fix             polar_output all ave/time 10 5 50 c_dipole_moment[1] c_dipole_moment[2] c_dipole_moment[3] file polarization.dat
+
+# ========== MAIN SIMULATION ==========
+print "Running piezoelectric simulation..."
+run             10000
+
+# ========== STRAIN ANALYSIS ==========
+print "Analyzing strain response..."
+
+# Remove previous fixes
+unfix           anchor
+unfix           tension
+
+# Apply different strain levels
+variable        strain equal 0.0
+label           strain_loop
+
+    # Apply strain
+    variable    strain equal ${strain}+0.005
+    change_box  all z scale $(1.0+v_strain) remap
+    
+    # Equilibrate
+    fix         2 mobile nvt temp 300.0 300.0 0.1
+    run         1000
+    unfix       2
+    
+    # Output current strain and polarization
+    print       "${strain} $(c_dipole_moment[3])" append strain_polar.dat
+    
+    # Continue loop if strain < 0.05
+    if          "${strain} < 0.05" then "jump SELF strain_loop"
+
+print "Simulation completed successfully! alll done"
+print "results saved in polarization.dat and strain_polar.dat "

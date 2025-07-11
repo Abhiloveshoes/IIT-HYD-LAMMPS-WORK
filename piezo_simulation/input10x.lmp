@@ -1,0 +1,119 @@
+######New lammps script for a 10x10x10 supercell, using coreshell model######
+#####trying to micmic the piezoelectric_300 design parameters####
+
+#INITIALIZATION
+units           metal
+dimension       3
+boundary        p p p
+atom_style      full
+
+# ========== READ  from new BTO file ==========
+read_data BTO_core_shell.data
+include group_definitions.in
+
+
+####force fields####
+# ----- Interatomic Potentials -----
+
+pair_style      born/coul/wolf/cs 0.25 9.0 11.0
+
+# Format: pair_coeff <type1> <type2> <A> <rho> <C> ##### this was the previous format used#####
+######new format Format: pair_coeff <type1> <type2> A rho sigma C D####
+
+#####From Sepliarsky et al. (Phys. Rev. B 64, 060101(R)):######
+##pair_coeff 1 3 1227.0   0.345  0.0     # Ba_core – O_core
+###pair_coeff 2 3 1550.0   0.299  0.0     # Ti_core – O_core
+####pair_coeff 3 3 22764.0  0.149  27.88   # O_core – O_core
+# Define all unused pairs as dummy
+pair_coeff * * 0.0 1.0 0.0 0.0 0.0  # Fill all with 0s (or small values)
+
+pair_coeff 1 3   7149.8110   0.3019   0.0   0.0     0.0     # Ba_core – O_core
+pair_coeff 2 3   7220.2700   0.2303   0.0   0.0     0.0     # Ti_core – O_core
+pair_coeff 3 3   3719.6000   0.3408   0.0   597.17  0.0     # O_core – O_core
+
+bond_style      harmonic ###previously harmonic bond style was used####
+# Format: bond_coeff <bond_type> <k> <r0>
+# Units: k in eV/Å², r0 in Å
+
+#bond_coeff 1 0.0 149.2550 0.0000 0.0000     # Ba
+#bond_coeff 2 0.0  18.4650 0.0000 208.3333   # O
+#bond_coeff 3 0.0 153.0700 0.0000  20.8333
+
+bond_coeff 1 70.0  0.1    # Ba core–shell
+bond_coeff 2 100.0 0.1    # Ti core–shell
+bond_coeff 3 150.0 0.1    # O core–shell
+
+
+# ----- Groups -----
+###group           all type 1 2 3 4 5 6  ######see the btodataGen.py file for the groups
+
+# ----- Neighbor List -----
+comm_modify cutoff 5.0
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+
+# Start with a minimization to relax bonds
+#min_style cg
+#minimize 1e-10 1e-10 1000 10000
+minimize 1e-8 1e-8 1000 10000
+  
+
+
+# ----- Initial Conditions -----
+velocity        all create 300.0 12345 mom yes rot no dist gaussian
+
+# ----- Thermostat and Barostat -----
+fix 1 all nve
+fix 2 all temp/rescale 100 300 300 5.0 1.0
+run 5000
+
+unfix 1
+unfix 2
+
+
+fix             1 all npt temp 300.0 300.0 100 iso 0.0001 0.0001 100
+
+# ----- Time-Varying Electric Field -----
+# Define time-based variable for E-field along z (MV/m → V/Å)
+# 1 MV/m ≈ 0.001 V/Å → 250 MV/m = 0.25 V/Å
+# Stage 1: 0–50,000 → 0.25 V/Å
+# Stage 2: 50,000–75,000 → linear to 0
+# Stage 3: 75,000–100,000 → 0
+
+###variable        steps equal step
+##variable        Ez atom "v_Ez_t"
+
+####variable        Ez_t equal "step < 50000 ? 0.25 : (step < 75000 ? 0.25*(1 - (step-50000)/25000.0) : 0.0)"
+##variable Ez_t equal if(step < 50000, 0.25, if(step < 75000, 0.25*(1 - (step - 50000)/25000.0), 0.0))
+
+##fix             efield all efield 0.0 0.0 v_Ez_t
+
+variable Ez1 equal 0.25
+fix efield all efield 0.0 0.0 v_Ez1
+run 50000
+thermo_style    custom step temp press etotal pe ke v_Ez_1
+
+variable slope equal -0.25/25000.0
+variable intercept equal 0.25 - ${slope}*50000
+variable Ez2 equal "v_slope*step + v_intercept"
+unfix efield
+fix efield all efield 0.0 0.0 v_Ez2
+run 25000
+thermo_style    custom step temp press etotal pe ke v_Ez_2
+
+
+variable Ez3 equal 0.0
+unfix efield
+fix efield all efield 0.0 0.0 v_Ez3
+run 25000
+thermo_style    custom step temp press etotal pe ke v_Ez_3
+
+# ----- Output -----
+thermo          1000
+##thermo_style    custom step temp press etotal pe ke v_Ez_1
+
+dump            1 all custom 1000 dump.piezoelectric id type x y z q
+
+# ----- Run -----
+timestep        0.1
+run             100000

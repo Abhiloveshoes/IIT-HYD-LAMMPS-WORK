@@ -1,0 +1,56 @@
+# ---------------- Initialization ----------------
+units           metal
+dimension       3
+boundary        p p p
+atom_style      full
+kspace_style    ewald 1e-5
+pair_style      buck/coul/long 10.0
+
+# ---------------- Atom Definition ----------------
+read_data       gan_core_shell.data
+
+# ---------------- Pair Coefficients ----------------
+# Format: pair_coeff i j A rho C (Buckingham)
+# Add realistic values as needed — dummy values shown here.
+# Use real parameters from literature or empirical fitting.
+
+pair_coeff 1 1  1000.0 0.3 100.0     # Ga core - Ga core
+pair_coeff 1 3  800.0  0.3 80.0      # Ga core - N core
+pair_coeff 3 3  600.0  0.3 60.0      # N core - N core
+pair_coeff 2 2  0.0    1.0 0.0       # Ga shell - shell (no LJ or Buck)
+pair_coeff 4 4  0.0    1.0 0.0       # N shell - shell
+pair_coeff 1 2  0.0    1.0 0.0       # core-shell: zero (bond takes care)
+pair_coeff 3 4  0.0    1.0 0.0
+pair_coeff 2 3  0.0    1.0 0.0
+pair_coeff 2 4  0.0    1.0 0.0
+pair_coeff 1 4  0.0    1.0 0.0
+
+# ---------------- Bond Coefficients ----------------
+bond_style      harmonic
+bond_coeff      1 1000.0 0.0     # strong core-shell spring, k=1000 eV/Å²
+
+# ---------------- Neighbor List ----------------
+neighbor        2.0 bin
+neigh_modify    delay 10 every 1 check yes
+
+# ---------------- Minimization ----------------
+fix             fix_min all box/relax iso 0.0 vmax 0.001
+min_style       cg
+minimize        1e-8 1e-10 1000 10000
+unfix           fix_min
+
+# ---------------- Apply Electric Field ----------------
+fix             ef all efield 0.0 0.0 0.01  # Apply small field along z
+
+# ---------------- Dynamics ----------------
+fix             1 all nve
+fix             qeq all qeq/slater 10 1.0 10.0 1e-6 param.qeq
+
+thermo          100
+thermo_style    custom step temp etotal press pxx pyy pzz
+
+dump            d1 all custom 200 dump.gan id type x y z q
+dump_modify     d1 sort id
+
+timestep        1.0
+run             10000

@@ -1,0 +1,140 @@
+# ---------- Initialization ----------
+units           metal
+dimension       3
+boundary        p p f
+atom_style      full
+
+read_data       batio3.data
+
+# ---------- Interatomic Potentials ----------
+pair_style      hybrid/overlay buck/coul/long 10.0
+kspace_style    ewald 1e-5
+
+bond_style      harmonic
+
+# Pair Coefficients (Example Values)
+pair_coeff 1 1 buck/coul/long 0.0 1.0 0.0
+pair_coeff 1 2 buck/coul/long 0.0 1.0 0.0
+pair_coeff 2 2 buck/coul/long 0.0 1.0 0.0
+
+pair_coeff 1 3 buck/coul/long 0.0 1.0 0.0
+pair_coeff 1 4 buck/coul/long 0.0 1.0 0.0
+pair_coeff 2 3 buck/coul/long 0.0 1.0 0.0
+pair_coeff 2 4 buck/coul/long 0.0 1.0 0.0
+
+pair_coeff 1 5 buck/coul/long 821.6 0.3242 0.0
+pair_coeff 1 6 buck/coul/long 821.6 0.3242 0.0
+pair_coeff 2 5 buck/coul/long 821.6 0.3242 0.0
+pair_coeff 2 6 buck/coul/long 821.6 0.3242 0.0
+
+pair_coeff 3 3 buck/coul/long 0.0 1.0 0.0
+pair_coeff 3 4 buck/coul/long 0.0 1.0 0.0
+pair_coeff 4 4 buck/coul/long 0.0 1.0 0.0
+
+pair_coeff 3 5 buck/coul/long 1380.0 0.2740 0.0
+pair_coeff 3 6 buck/coul/long 1380.0 0.2740 0.0
+pair_coeff 4 5 buck/coul/long 1380.0 0.2740 0.0
+pair_coeff 4 6 buck/coul/long 1380.0 0.2740 0.0
+
+pair_coeff 5 5 buck/coul/long 22764.0 0.1490 27.88
+pair_coeff 5 6 buck/coul/long 22764.0 0.1490 27.88
+pair_coeff 6 6 buck/coul/long 22764.0 0.1490 27.88
+
+# Bond coefficients (core-shell springs)
+bond_coeff 1 50.0 0.0  # All bonds: spring constant k = 70 eV/Å², equilibrium = 0.0 Å
+
+# ---------- Neighbor & Communication ----------
+neighbor        4.0 bin
+neigh_modify    every 1 delay 0 check yes
+comm_modify     vel yes cutoff 2.0
+
+# ---------- Fixes ----------
+fix             damp all langevin 300 300 100 12345
+fix             intg all nve
+
+# ---------- Time Step ----------
+timestep        0.00001
+
+# ---------- Energy Minimization ----------
+min_style       cg
+minimize        1e-4 1e-6 1000 10000
+
+# ---------- Computes & Thermo ----------
+compute         dip all dipole
+variable        Px equal c_dip[1]
+variable        Py equal c_dip[2]
+variable        Pz equal c_dip[3]
+variable        V equal vol
+variable        E equal 0.001  # Field in V/Å
+
+thermo          100
+thermo_style    custom step temp v_Px v_Py v_Pz
+fix avg_p all ave/time 10 100 1000 c_dip[1] c_dip[2] c_dip[3] file polarization.dat
+
+# ---------- Function to apply +E / -E ----------
+label loop_all
+dump          traj all custom 100 dump.batio3.lammpstrj id type x y z
+dump_modify   traj sort id
+
+# ---------- d33: Ez → Pz ----------
+fix f all efield 0.0 0.0 ${E}
+run 1000
+variable Pz_plus equal ${Pz}
+unfix f
+
+fix f all efield 0.0 0.0 -${E}
+run 1000
+variable Pz_minus equal ${Pz}
+unfix f
+
+variable d33_raw equal (v_Pz_plus - v_Pz_minus)/(2*v_E*v_V)
+variable d33_CpM2 equal v_d33_raw*1.60218e-19/1e-30
+print "d33 (C/m^2) = ${d33_CpM2}"
+
+# ---------- d32: Ey → Pz ----------
+fix f all efield 0.0 ${E} 0.0
+run 1000
+variable Pz_plus equal ${Pz}
+unfix f
+
+fix f all efield 0.0 -${E} 0.0
+run 1000
+variable Pz_minus equal ${Pz}
+unfix f
+
+variable d32_raw equal (v_Pz_plus - v_Pz_minus)/(2*v_E*v_V)
+variable d32_CpM2 equal v_d32_raw*1.60218e-19/1e-30
+print "d32 (C/m^2) = ${d32_CpM2}"
+
+# ---------- d31: Ex → Pz ----------
+fix f all efield ${E} 0.0 0.0
+run 1000
+variable Pz_plus equal ${Pz}
+unfix f
+
+fix f all efield -${E} 0.0 0.0
+run 1000
+variable Pz_minus equal ${Pz}
+unfix f
+
+variable d31_raw equal (v_Pz_plus - v_Pz_minus)/(2*v_E*v_V)
+variable d31_CpM2 equal v_d31_raw*1.60218e-19/1e-30
+print "d31 (C/m^2) = ${d31_CpM2}"
+
+# ---------- d15: Ez → Px ----------
+fix f all efield 0.0 0.0 ${E}
+run 1000
+variable Px_plus equal ${Px}
+unfix f
+
+fix f all efield 0.0 0.0 -${E}
+run 1000
+variable Px_minus equal ${Px}
+unfix f
+
+variable d15_raw equal (v_Px_plus - v_Px_minus)/(2*v_E*v_V)
+variable d15_CpM2 equal v_d15_raw*1.60218e-19/1e-30
+print "d15 (C/m^2) = ${d15_CpM2}"
+
+# ---------- Done ----------
+print "Piezoelectric coefficients computed successfully."

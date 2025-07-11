@@ -1,0 +1,66 @@
+units metal
+atom_style full
+dimension 3
+boundary p p p
+read_data batio3.data
+
+# Interatomic Potential
+pair_style buck/coul/long 10.0
+pair_coeff * * 0.0 1.0 1.0  # Dummy values — replace with real parameters
+
+bond_style harmonic
+bond_coeff 1 1000.0 0.0  # Core-shell spring
+
+kspace_style ewald 1e-6
+
+# Groups
+group shells type 2 4 6
+group cores type 1 3 5
+group all_atoms union shells cores
+
+# Fixes
+fix shell_int shells nve
+fix core_int cores nvt temp 300 300 100
+
+timestep 0.5
+
+velocity all_atoms create 300.0 12345
+thermo_modify lost ignore flush yes
+run 2000
+
+neighbor 2.0 bin
+neigh_modify delay 0 every 1 check yes
+thermo_modify lost warn
+
+kspace_style ewald 1e-6
+
+timestep 0.5
+run 0  # initialize box, forces, lz
+
+
+# Apply strain in Z for d33
+variable strain equal 0.01
+variable new_z equal lz*(1.0 + v_strain)
+change_box all z final 0.0 ${new_z} remap
+
+
+
+# Compute polarization
+compute disp all displace/atom
+compute q all property/atom q
+variable px atom c_q * c_disp[1]
+compute Px all reduce sum v_px
+
+
+variable py atom c_q * c_disp[2]
+compute Py all reduce sum v_py
+
+variable pz atom c_q * c_disp[3]
+compute Pz all reduce sum v_pz
+
+thermo 100
+thermo_style custom step temp press v_strain c_Px c_Py c_Pz
+
+# Dump atomic positions and charges
+dump 1 all custom 500 dump.polarization id type x y z q
+run 5000

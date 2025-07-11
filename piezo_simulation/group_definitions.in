@@ -1,0 +1,4 @@
+# Group definitions for core-shell BaTiO3
+group Ba type 1 2
+group Ti type 3 4
+group O type 5 6

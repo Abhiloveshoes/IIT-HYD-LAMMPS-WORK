@@ -1,0 +1,7 @@
+# type   chi     eta
+1        1.336   7.0    # Ba_core
+2        1.336   7.0    # Ba_shell
+3        3.17    12.0   # Ti_core
+4        3.17    12.0   # Ti_shell
+5        2.52    13.0   # O_core
+6        2.52    13.0   # O_shell

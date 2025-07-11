@@ -1,0 +1,9 @@
+units metal
+atom_style full
+read_data batio3.data
+
+compute q all property/atom q
+compute Q all reduce sum c_q
+run 0
+variable total_charge equal c_Q
+print ">>> Total charge = ${total_charge}"

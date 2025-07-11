@@ -1,0 +1,66 @@
+# Input Script LAMMPS
+# ------------------------ INITIALIZATION -----------------------------------------------
+units metal
+dimension 3
+boundary p p p
+atom_style full
+# ------------------------ ATOMS DEFINITION ---------------------------------------------
+fix csinfo all property/atom i_CSID
+read_data BTO_10x5x5_fixed.txt
+change_box all triclinic
+neighbor 2.0 bin
+neigh_modify every 1 delay 0 check yes
+comm_modify vel yes
+# ------------------------ FORCE FIELDS -------------------------------------------------
+pair_style born/coul/wolf/cs 0.25 9.0 11.0
+# A rho sigma C D
+pair_coeff * * 0.0 1.000 0.00 0.00 0.00
+pair_coeff 4 5 7149.8110 0.3019 0.00 0.0000 0.00 #Ba-O
+pair_coeff 5 6 7220.2700 0.2303 0.00 0.0000 0.00 #Ti-O
+pair_coeff 5 5 3719.6000 0.3408 0.00 597.1700 0.00 #O-O
+bond_style class2
+# R0 K2 K3 K4
+bond_coeff 1 0.0 50.0 0.0000 0.0000 #Ba core-shell
+bond_coeff 2 0.0 5.0 0.0000 208.3333 #O core-shell
+bond_coeff 3 0.0 50.0 0.0000 20.8333 #Ti core-shell
+special_bonds coul 0.0 0.0 0.0
+# ------------------------ GROUP DEFINITION ---------------------------------------------
+group cores type 1 2 3
+group shells type 4 5 6
+# ------------------------ INITIAL VELOCITIES -------------------------------------------
+thermo_style custom step etotal temp press vol
+compute CSequ all temp/cs cores shells
+thermo_modify temp CSequ
+velocity all create 10 12345 dist gaussian mom yes rot no bias yes temp CSequ
+velocity all scale 150 temp CSequ
+# ------------------------ MINIMIZATION  --------------------------------------
+min_style fire
+minimize 1.0e-6 1.0e-8 1000 10000
+
+# Short thermal damping
+fix damp all nvt temp 1.0 10.0 1.0
+run 1000
+unfix damp
+# ------------------------- THERMALIZATION ----------------------------------------------
+fix 1 all nvt temp 10 300 10
+fix_modify 1 temp CSequ
+thermo 1000
+dump D1 all custom 10000 dumps/stab1_*.txt id type x y z
+timestep 0.0001
+run 10000
+unfix 1
+undump D1
+# ------------------------- ELECTRIC FIELD ----------------------------------------------
+variable myT equal "(step-100000) / 1000.0"
+variable PyAmp python myPy
+python myPy input 1 v_myT return v_PyAmp format ff file funcs.py
+fix ELF all efield 0.0 0.0 v_PyAmp
+fix 2 all npt temp 300 300 0.04 tri 1.0 1.0 0.04
+fix_modify 2 temp CSequ
+timestep 0.0004
+thermo 500
+dump D2 all atom 10000 dumps/stab2_*.txt
+run 10000
+######################################
+# SIMULATION DONE
+print "All done"

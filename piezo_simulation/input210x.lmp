@@ -1,0 +1,91 @@
+# -------- Initialization --------
+units           metal
+dimension       3
+boundary        p p p
+atom_style      full
+
+# -------- Read Data --------
+read_data       BTO_core_shell.data
+include         group_definitions.in
+
+
+# -------- Dump Initial Structure for Debugging --------
+dump 0 all custom 100 dump.init id type x y z
+
+# -------- Force Fields --------
+pair_style      born/coul/wolf/cs 0.25 9.0 11.0
+
+# Reset all pairs to small dummy interaction
+pair_coeff      * * 0.0 1.0 0.0 0.0 0.0
+
+# Valid pair coefficients
+pair_coeff      1 3   7149.8110  0.3019  0.0  0.0    0.0    # Ba_core – O_core
+pair_coeff      2 3   7220.2700  0.2303  0.0  0.0    0.0    # Ti_core – O_core
+pair_coeff      3 3   3719.6000  0.3408  0.0  597.17 0.0    # O_core – O_core
+
+bond_style      harmonic
+bond_coeff      1     70.0       0.1    # Ba core–shell
+bond_coeff      2     100.0      0.1    # Ti core–shell
+bond_coeff      3     150.0      0.1    # O core–shell
+
+# -------- QEq for Core–Shell Charge Distribution --------
+#fix qeq all qeq/point 1 1.0 1000 1000
+
+# -------- Neighbor Setup --------
+comm_modify     cutoff 5.0
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes one 4000
+
+# -------- Energy Minimization --------
+min_style       fire
+minimize        1e-6 1e-8 1000 10000
+
+
+# -------- Initial Velocities --------
+velocity        all create 300.0 12345 mom yes rot no dist gaussian
+
+# -------- Equilibration (NVE + Langevin + Core–Shell Spring) --------
+# --- Stabilize Shell-Core Motion ---
+timestep        0.001
+
+fix             spring all spring/self 50.0
+
+fix             int1 all nve
+fix             int2 all langevin 300 300 100 12345
+
+run             10000
+
+unfix           spring
+unfix           int1
+unfix           int2
+
+# -------- NPT Ensemble + Electric Field Cycling --------
+fix             1 all npt temp 300.0 300.0 100 iso 0.0001 0.0001 100
+
+# --- Stage 1: Constant E = 0.25 V/Å (250 MV/m)
+variable        Ez1 equal 0.25
+fix             efield all efield 0.0 0.0 v_Ez1
+run             50000
+unfix           efield
+
+# --- Stage 2: Linear decrease from 0.25 to 0
+variable        slope equal -0.25/25000.0
+variable        intercept equal 0.25 - ${slope}*50000
+variable        Ez2 equal "v_slope*step + v_intercept"
+fix             efield all efield 0.0 0.0 v_Ez2
+run             25000
+unfix           efield
+
+# --- Stage 3: Constant E = 0
+variable        Ez3 equal 0.0
+fix             efield all efield 0.0 0.0 v_Ez3
+run             25000
+unfix           efield
+
+# -------- Thermo + Output --------
+timestep        0.1
+thermo          1000
+thermo_style    custom step temp press etotal pe ke
+
+dump            1 all custom 1000 dump.piezoelectric id type x y z q
+run             0  # Optional placeholder

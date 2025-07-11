@@ -1,0 +1,83 @@
+# -------- Initialization --------
+units           metal
+dimension       3
+boundary        p p p
+atom_style      full
+
+# -------- Read Data --------
+read_data       BTO_core_shell.data
+include         group_definitions.in
+
+# -------- Force Fields --------
+pair_style      born/coul/wolf/cs 0.25 9.0 11.0
+pair_coeff      * * 0.0 1.0 0.0 0.0 0.0
+pair_coeff      1 3 7149.8110 0.3019 0.0 0.0 0.0
+pair_coeff      2 3 7220.2700 0.2303 0.0 0.0 0.0
+pair_coeff      3 3 3719.6000 0.3408 0.0 597.17 0.0
+
+bond_style      harmonic
+bond_coeff      1 70.0 0.1
+bond_coeff      2 100.0 0.1
+bond_coeff      3 150.0 0.1
+
+# -------- Neighbor Setup --------
+comm_modify     cutoff 5.0
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+
+# -------- Energy Minimization --------
+min_style       fire
+minimize        1e-6 1e-8 1000 10000
+
+# -------- Force a Debug Dump Early --------
+dump debug all custom 10 dump.debug id type x y z
+timestep 0.0001
+
+# -------- Set Velocity to 0 K --------
+velocity all create 0.01 12345 mom yes rot no dist gaussian
+
+# -------- Light Pre-run --------
+fix vv all nve
+run 100
+unfix vv
+
+# -------- Shell-core stabilization --------
+fix spring all spring/self 1000.0
+fix int1 all nve
+fix int2 all langevin 300.0 300.0 100.0 12345
+timestep 0.001
+run 10000
+unfix spring
+unfix int1
+unfix int2
+
+# -------- Stop Dump --------
+undump debug
+
+# -------- NPT Equilibration --------
+fix npt all npt temp 300.0 300.0 100 iso 0.0001 0.0001 100
+run 10000
+unfix npt
+
+# -------- Electric Field Cycling --------
+variable Ez1 equal 0.25
+fix efield all efield 0.0 0.0 v_Ez1
+run 50000
+unfix efield
+
+variable slope equal -0.25/25000.0
+variable intercept equal 0.25 - ${slope}*50000
+variable Ez2 equal "v_slope*step + v_intercept"
+fix efield all efield 0.0 0.0 v_Ez2
+run 25000
+unfix efield
+
+variable Ez3 equal 0.0
+fix efield all efield 0.0 0.0 v_Ez3
+run 25000
+unfix efield
+
+# -------- Thermo and Final Output --------
+thermo          1000
+thermo_style    custom step temp press etotal pe ke
+dump final all custom 1000 dump.piezoelectric id type x y z q

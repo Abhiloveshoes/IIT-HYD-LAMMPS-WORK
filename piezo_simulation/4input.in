@@ -1,0 +1,78 @@
+# ---------- Initialization ----------
+units           metal
+dimension       3
+boundary        p p p
+atom_style      full
+
+read_data       batio3_core_shell_4x4x4.data
+include         pair_coeffs_batio3.in
+# ---------- Pair & Bond ----------
+pair_style      buck/coul/long 10.0
+kspace_style    ewald 1e-6
+
+# <-- your 21 pair_coeffs here (already set) -->
+
+bond_style      harmonic
+bond_coeff      1 1000.0 0.0
+
+# ---------- Groups ----------
+group cores  type 1 3 5
+group shells type 2 4 6
+group all_atoms union cores shells
+
+# ---------- Neighbor ----------
+neighbor        3.0 bin
+neigh_modify    delay 0 every 1 check yes
+
+# ---------- Time Step ----------
+timestep        0.25  # reduce to prevent bond breaking
+
+# ---------- Damping Shells ----------
+velocity        all_atoms create 300.0 12345 mom yes rot no dist gaussian
+fix             int_core cores nvt temp 300.0 300.0 100.0
+fix             int_shell shells nve
+
+# Add a damping force to prevent shell atoms flying off
+fix damp_shell shells langevin 300.0 300.0 100.0 12345
+
+# ---------- Minimize ----------
+fix             relax all_atoms box/relax iso 0.0 vmax 0.001
+min_style       cg
+minimize        1e-8 1e-10 10000 100000
+unfix           relax
+
+# ---------- Thermo ----------
+thermo          100
+thermo_style    custom step temp press pe ke etotal
+thermo_modify   lost ignore flush yes
+
+# ---------- Run ----------
+run             5000
+
+# ---------- Total Charge ----------
+compute         q all property/atom q
+compute         Q all reduce sum c_q
+variable        total_charge equal c_Q
+run             0
+print           ">>> Total system charge = ${total_charge}"
+
+# ---------- Polarization ----------
+compute         disp all displace/atom
+variable        px atom c_q * c_disp[1]
+variable        py atom c_q * c_disp[2]
+variable        pz atom c_q * c_disp[3]
+compute         Px all reduce sum v_px
+compute         Py all reduce sum v_py
+compute         Pz all reduce sum v_pz
+
+# ---------- Apply Z-strain for d33 ----------
+variable        strain equal 0.01
+variable        new_z equal "lz*(1.0 + v_strain)"
+change_box      all z final 0.0 ${new_z} remap
+
+run             5000
+
+thermo_style    custom step temp press v_strain c_Px c_Py c_Pz
+
+# ---------- Dump ----------
+dump            d1 all custom 100 dump.polarization id type x y z q
